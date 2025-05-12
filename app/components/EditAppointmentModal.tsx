@@ -8,13 +8,15 @@ interface AppointmentModalProps {
     onSave: (updatedAppointment: Appointment) => void;
     onClose: () => void;
     services: { id: number; name: string }[];
+    bikeMakers: { id: number; name: string }[];
 }
 
-const EditAppointmentModal: React.FC<AppointmentModalProps> = ({ appointment, onSave, onClose, services }) => {
+const EditAppointmentModal: React.FC<AppointmentModalProps> = ({ appointment, onSave, onClose, services, bikeMakers }) => {
     const [customer, setCustomer] = useState(appointment?.customer || '');
     const [phone, setPhone] = useState(appointment?.phone || '');
     const [bikeModel, setBikeModel] = useState(appointment?.bikeModel || '');
     const [service, setService] = useState<number>(appointment?.serviceId || 0);
+    const [bikeMaker, setBikeMaker] = useState<number>(appointment?.bikeMakerId || 0);
     const [status, setStatus] = useState(appointment?.status || 'Scheduled');
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -26,6 +28,7 @@ const EditAppointmentModal: React.FC<AppointmentModalProps> = ({ appointment, on
                 phone,
                 bikeModel,
                 serviceId: service, // important!
+                bikeMakerId: bikeMaker,
                 status
             };
             onSave(updatedAppointment); // Call onSave with the updated appointment
@@ -33,6 +36,11 @@ const EditAppointmentModal: React.FC<AppointmentModalProps> = ({ appointment, on
     };
 
     const serviceOptions = services.map((s) => ({
+        value: s.id,
+        label: s.name
+    }));
+
+    const bikeMakerOptions = bikeMakers.map((s) => ({
         value: s.id,
         label: s.name
     }));
@@ -67,7 +75,17 @@ const EditAppointmentModal: React.FC<AppointmentModalProps> = ({ appointment, on
                             className="w-full p-2 border border-gray-300 rounded"
                         />
                     </div>
-
+                    <div className="mb-2">
+                        <label>Bike Maker</label>
+                        <Select
+                            name="bikeMakerId"
+                            value={bikeMakerOptions.find(option => option.value === appointment?.bikeMakerId)}
+                            onChange={(selectedOption) => setBikeMaker(selectedOption?.value || '')}
+                            options={bikeMakerOptions}
+                            className="react-select-container"
+                            classNamePrefix="react-select"
+                        />
+                    </div>
                     <div className="mb-2">
                         <label>Bike Model</label>
                         <input

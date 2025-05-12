@@ -2,11 +2,12 @@ import { useFetcher } from "@remix-run/react";
 import {useEffect, useState} from "react";
 import Select from "react-select";
 
-export default function NewAppointmentModal({ onClose, onCreated, services }) {
+export default function NewAppointmentModal({ onClose, onCreated, services, bikeMakers }) {
     const fetcher = useFetcher();
     const isSubmitting = fetcher.state === "submitting";
     const error = fetcher.data?.error;
     const [serviceId, setServiceId] = useState(null);
+    const [bikeMakerId, setBikeMakerId] = useState(null);
 
     useEffect(() => {
         if (fetcher.data?.success) {
@@ -21,6 +22,12 @@ export default function NewAppointmentModal({ onClose, onCreated, services }) {
         label: s.name
     }));
 
+    const bikeMakerOptions = bikeMakers.map((s) => ({
+        value: s.id,
+        label: s.name
+    }));
+
+
     return (
         <div className="bg-white p-6 rounded shadow-xl max-w-lg w-full">
             <h2 className="text-xl font-bold mb-4">New Appointment</h2>
@@ -30,6 +37,7 @@ export default function NewAppointmentModal({ onClose, onCreated, services }) {
                     <label className="block font-medium">Service</label>
 
                     <Select
+                        name="serviceId"
                         value={serviceOptions.find(opt => opt.value === serviceId)}
                         onChange={(selected) => setServiceId(selected?.value)}
                         options={serviceOptions}
@@ -43,6 +51,17 @@ export default function NewAppointmentModal({ onClose, onCreated, services }) {
                 <div>
                     <label className="block font-medium">Phone</label>
                     <input name="phone" type="text" className="w-full border p-2 rounded" required />
+                </div>
+                <div>
+                    <label className="block font-medium">Bike Maker</label>
+
+                    <Select
+                        name="bikeMakerId"
+                        value={bikeMakerOptions.find(opt => opt.value === bikeMakerId)}
+                        onChange={(selected) => setBikeMakerId(selected?.value)}
+                        options={bikeMakerOptions}
+                        placeholder="Select a bike maker"
+                    />
                 </div>
                 <div>
                     <label className="block font-medium">Bike Model</label>

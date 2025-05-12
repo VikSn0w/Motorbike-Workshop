@@ -1,5 +1,5 @@
 import {useCallback, useState} from "react";
-import { useLoaderData } from "@remix-run/react";
+import {Link, useLoaderData} from "@remix-run/react";
 import { prisma } from "~/db.server";
 import {ActionFunction, json} from "@remix-run/node";
 import { Calendar, dateFnsLocalizer, type Event as CalendarEvent } from "react-big-calendar";
@@ -26,8 +26,9 @@ export const action: ActionFunction = async ({ request }) => {
     const date = new Date(formData.get("date")?.toString() || "");
 
     const serviceId = Number(formData.get("serviceId"));
+    const bikeMakerId = Number(formData.get("bikeMakerId"));
 
-    if (!customer || !phone || !bikeModel || !serviceId || isNaN(date.getTime())) {
+    if (!customer || !phone || !bikeModel || !serviceId || !bikeMakerId || isNaN(date.getTime())) {
         return json({ error: "All fields are required." }, { status: 400 });
     }
 
@@ -38,6 +39,7 @@ export const action: ActionFunction = async ({ request }) => {
             bikeModel,
             date,
             serviceId,
+            bikeMakerId,
         },
         include: { service: true },
     });
@@ -63,12 +65,14 @@ const localizer = dateFnsLocalizer({
 export const loader = async () => {
     const appointments = await prisma.appointment.findMany();
     const services = await prisma.service.findMany();
-    return json({ appointments, services });};
+    const bikeMakers = await prisma.bikeMaker.findMany();
+    return json({ appointments, services, bikeMakers});};
 
 export default function CalendarPage() {
-    const { appointments: initialAppointments, services } = useLoaderData<{
+    const { appointments: initialAppointments, services, bikeMakers} = useLoaderData<{
         appointments: Appointment[];
         services: { id: number; name: string }[];
+        bikeMakers: { id: number; name: string }[];
     }>();
 
     const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
@@ -115,13 +119,25 @@ export default function CalendarPage() {
     return (
         <div className="p-6">
             <div className="flex items-center justify-between mb-4">
-                <h1 className="text-2xl font-bold">Motorbike Workshop Calendar</h1>
+                <h1 className="text-2xl font-bold">Workshop Calendar</h1>
                 <button
                     onClick={() => setShowNewAppointmentModal(true)}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                 >
                     + New Appointment
                 </button>
+                <Link to="/services"><button
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                    Manage Services
+                </button></Link>
+
+                <Link to="/bikeMakers"><button
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                    Manage Bike Makers
+                </button></Link>
+
             </div>
 
             <Calendar
@@ -156,6 +172,7 @@ export default function CalendarPage() {
                     onSave={handleSave}
                     onClose={handleClose}
                     services={services}
+                    bikeMakers={bikeMakers}
                 />
 
             )}
@@ -166,6 +183,7 @@ export default function CalendarPage() {
                         onClose={handleClose}
                         onCreated={handleCreated}
                         services={services}
+                        bikeMakers={bikeMakers}
                     />
                 </div>
             )}
