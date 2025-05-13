@@ -1,34 +1,48 @@
-import { Link, useFetcher, useLoaderData } from "@remix-run/react";
-import { ActionFunction, json } from "@remix-run/node";
-import { prisma } from "~/db.server";
-import { useCallback, useEffect, useState } from "react";
-import { BikeMaker } from "@prisma/client";
+import {Link, useFetcher, useLoaderData} from "@remix-run/react";
+import {ActionFunction, json} from "@remix-run/node";
+import {prisma} from "~/db.server";
+import {useCallback, useEffect, useState} from "react";
+import {BikeMaker} from "@prisma/client";
 import NewEntityModal from "~/components/NewEntityModal";
 
 export const action: ActionFunction = async ({ request }) => {
     const formData = await request.formData();
     const _action = formData.get("_action");
-    const entityType = formData.get("entityType")?.toString();
+    const entityType = formData.get("entityType"); // Get the entityType from the form
 
-    if (!entityType) {
-        throw new Error("Missing entityType");
-    }
     if (_action === "delete") {
-        const bikeMakerId = parseInt(formData.get("bikeMakerId")?.toString() || "", 10);
+        const raw = formData.get("BikeMakerId")?.toString();
+        const bikeMakerId = raw ? parseInt(raw, 10) : NaN;
+        if (isNaN(bikeMakerId)) {
+            return json({ error: "Invalid BikeMaker ID." }, { status: 400 });
+        }
 
-        // Check for associated appointments
-        const related = await prisma.appointment.findFirst({
+        // 1) ensure it exists
+        const existing = await prisma.bikeMaker.findUnique({
+            where: { id: bikeMakerId },
+        });
+        if (!existing) {
+            return json({ error: `BikeMaker #${bikeMakerId} not found.` }, { status: 404 });
+        }
+
+        // 2) count related appointments
+        const appointmentCount = await prisma.appointment.count({
             where: { bikeMakerId },
         });
 
-        if (related) {
-            return json({ error: "Cannot delete: bikeMaker is in use." }, { status: 400 });
+        if (appointmentCount > 0) {
+            return json({
+                error: `Cannot delete: BikeMaker #${bikeMakerId} is used by ${appointmentCount} appointment(s).`,
+            }, { status: 400 });
         }
 
-        await prisma.bikeMaker.delete({ where: { id: bikeMakerId } });
+        // 3) safe to delete
+        await prisma.bikeMaker.delete({
+            where: { id: bikeMakerId },
+        });
+
         return json({ success: true, deletedId: bikeMakerId });
     }
-
 
     // Default: creation
     const entity_name = formData.get(`name`)?.toString() || "";
@@ -44,17 +58,36 @@ export const action: ActionFunction = async ({ request }) => {
     return json({ success: true, [entityType]: entity });
 };
 
+
 // Dummy loader for demonstration – replace with your DB query
 export const loader = async () => {
     const bikeMakers = await prisma.bikeMaker.findMany();
-    return json({ bikeMakers });
-};
+    return json({ bikeMakers });};
+
 
 export default function BikeMakersPage() {
     const { bikeMakers: initialBikeMakers } = useLoaderData<typeof loader>();
     const [bikeMakers, setBikeMakers] = useState<BikeMaker[]>(initialBikeMakers);
     const [showNewBikeMakerModal, setShowNewBikeMakerModal] = useState(false);
     const fetcher = useFetcher();
+
+    const handleClose = () => {
+        setShowNewBikeMakerModal(false);
+    };
+
+    const handleCreated = (newBikeMaker) => {
+        if (newBikeMaker) {
+            setBikeMakers((prev) => [...prev, newBikeMaker]); // Immediately update state
+        }
+    };
+
+    const handleDelete = (id: number) => {
+        const form = new FormData();
+        form.append("_action", "delete");
+        form.append("BikeMakerId", id.toString());
+        form.append("entityType", "BikeMaker");
+        fetcher.submit(form, { method: "post" });
+    };
 
     useEffect(() => {
         const data = fetcher.data;
@@ -71,23 +104,6 @@ export default function BikeMakersPage() {
             alert(data.error); // Handle errors (e.g., when trying to delete a bike maker that's in use)
         }
     }, [fetcher.data]);
-
-    const handleClose = () => {
-        setShowNewBikeMakerModal(false);
-    };
-
-    const handleCreated = (newBikeMaker) => {
-        if (newBikeMaker) {
-            setBikeMakers((prev) => [...prev, newBikeMaker]); // Immediately update state
-        }
-    };
-
-    const handleDelete = (id: number) => {
-        const form = new FormData();
-        form.append("_action", "delete");
-        form.append("bikeMakerId", id.toString());
-        fetcher.submit(form, { method: "post" });
-    };
 
     return (
         <div className="p-6">

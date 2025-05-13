@@ -15,19 +15,37 @@ export const action: ActionFunction = async ({ request }) => {
 
 
     if (_action === "delete") {
-        const entityId = parseInt(formData.get(`${entityType}Id`)?.toString() || "", 10);
-
-        // Check for associated appointments, bike makers, or services
-        const related = await prisma[entityType].findFirst({
-            where: { id: entityId },
-        });
-
-        if (related) {
-            return json({ error: `Cannot delete: ${entityType} is in use.` }, { status: 400 });
+        const raw = formData.get("ServiceId")?.toString();
+        const serviceId = raw ? parseInt(raw, 10) : NaN;
+        if (isNaN(serviceId)) {
+            return json({ error: "Invalid Service ID." }, { status: 400 });
         }
 
-        await prisma[entityType].delete({ where: { id: entityId } });
-        return json({ success: true, deletedId: entityId });
+        // 1) ensure it exists
+        const existing = await prisma.service.findUnique({
+            where: { id: serviceId },
+        });
+        if (!existing) {
+            return json({ error: `Service #${serviceId} not found.` }, { status: 404 });
+        }
+
+        // 2) count related appointments
+        const appointmentCount = await prisma.appointment.count({
+            where: { serviceId },
+        });
+
+        if (appointmentCount > 0) {
+            return json({
+                error: `Cannot delete: Service #${serviceId} is used by ${appointmentCount} appointment(s).`,
+            }, { status: 400 });
+        }
+
+        // 3) safe to delete
+        await prisma.service.delete({
+            where: { id: serviceId },
+        });
+
+        return json({ success: true, deletedId: serviceId });
     }
 
     // Default: creation
@@ -41,7 +59,7 @@ export const action: ActionFunction = async ({ request }) => {
         data: { name: entity_name },
     });
 
-    return json({ success: true, [entityType.toLowerCase()]: entity });
+    return json({ success: true, [entityType]: entity });
 };
 
 
@@ -70,9 +88,26 @@ export default function ServicesPage() {
     const handleDelete = (id: number) => {
         const form = new FormData();
         form.append("_action", "delete");
-        form.append("serviceId", id.toString());
+        form.append("ServiceId", id.toString());
+        form.append("entityType", "Service");
         fetcher.submit(form, { method: "post" });
     };
+
+    useEffect(() => {
+        const data = fetcher.data;
+
+        if (data?.success && data.service) {
+            setServices((prev) => [...prev, data.service]); // Add the newly created bike maker to the list
+        }
+
+        if (data?.success && data.deletedId) {
+            setServices((prev) => prev.filter((bm) => bm.id !== data.deletedId)); // Remove deleted bike maker
+        }
+
+        if (data?.error) {
+            alert(data.error); // Handle errors (e.g., when trying to delete a bike maker that's in use)
+        }
+    }, [fetcher.data]);
 
     return (
         <div className="p-6">
