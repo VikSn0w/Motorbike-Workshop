@@ -4,11 +4,13 @@ import {prisma} from "~/db.server";
 import {useCallback, useEffect, useState} from "react";
 import {BikeMaker} from "@prisma/client";
 import NewEntityModal from "~/components/NewEntityModal";
+import { serviceSchema } from "~/schemas/service";
+import {bikeMakerSchema} from "~/schemas/bikeMaker";
 
 export const action: ActionFunction = async ({ request }) => {
     const formData = await request.formData();
     const _action = formData.get("_action");
-    const entityType = formData.get("entityType"); // Get the entityType from the form
+    const entityType = formData.get("entityType");
 
     if (_action === "delete") {
         const raw = formData.get("BikeMakerId")?.toString();
@@ -17,7 +19,6 @@ export const action: ActionFunction = async ({ request }) => {
             return json({ error: "Invalid BikeMaker ID." }, { status: 400 });
         }
 
-        // 1) ensure it exists
         const existing = await prisma.bikeMaker.findUnique({
             where: { id: bikeMakerId },
         });
@@ -25,7 +26,6 @@ export const action: ActionFunction = async ({ request }) => {
             return json({ error: `BikeMaker #${bikeMakerId} not found.` }, { status: 404 });
         }
 
-        // 2) count related appointments
         const appointmentCount = await prisma.appointment.count({
             where: { bikeMakerId },
         });
@@ -36,7 +36,6 @@ export const action: ActionFunction = async ({ request }) => {
             }, { status: 400 });
         }
 
-        // 3) safe to delete
         await prisma.bikeMaker.delete({
             where: { id: bikeMakerId },
         });
@@ -44,11 +43,12 @@ export const action: ActionFunction = async ({ request }) => {
         return json({ success: true, deletedId: bikeMakerId });
     }
 
-    // Default: creation
     const entity_name = formData.get(`name`)?.toString() || "";
-    console.log(entityType);
-    if (!entity_name) {
-        return json({ error: `All fields are required. ${entity_name}` }, { status: 400 });
+    if (entityType === "BikeMaker") {
+        const result = bikeMakerSchema.safeParse({ name: entity_name });
+        if (!result.success) {
+            return json({ error: result.error.errors[0].message }, { status: 400 });
+        }
     }
 
     const entity = await prisma[entityType].create({
@@ -59,7 +59,6 @@ export const action: ActionFunction = async ({ request }) => {
 };
 
 
-// Dummy loader for demonstration – replace with your DB query
 export const loader = async () => {
     const bikeMakers = await prisma.bikeMaker.findMany();
     return json({ bikeMakers });};

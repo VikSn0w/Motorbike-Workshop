@@ -1,7 +1,7 @@
 import {useCallback, useState} from "react";
 import {Link, useLoaderData} from "@remix-run/react";
 import { prisma } from "~/db.server";
-import {ActionFunction, json} from "@remix-run/node";
+import {json} from "@remix-run/node";
 import { Calendar, dateFnsLocalizer, type Event as CalendarEvent } from "react-big-calendar";
 import format from "date-fns/format";
 import parse from "date-fns/parse";
@@ -10,6 +10,7 @@ import getDay from "date-fns/getDay";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import itIT from "date-fns/locale/it";
 import AppointmentModal from "~/components/AppointmentModal";
+import { useRevalidator } from "@remix-run/react";
 
 const locales = {
     "it-IT": itIT,
@@ -34,23 +35,25 @@ export const loader = async () => {
     const appointments = await prisma.appointment.findMany();
     const services = await prisma.service.findMany();
     const bikeMakers = await prisma.bikeMaker.findMany();
-    return json({ appointments, services, bikeMakers});};
+    return json({ appointments, services, bikeMakers});
+};
 
 export default function CalendarPage() {
-    const { appointments: initialAppointments, services, bikeMakers } = useLoaderData();
-    const [appointments, setAppointments] = useState(initialAppointments);
+    const { appointments, services, bikeMakers } = useLoaderData<LoaderData>();
     const [showModal, setShowModal] = useState(false);
     const [modalMode, setModalMode] = useState<"create" | "edit">("create");
     const [currentAppointment, setCurrentAppointment] = useState(null);
 
-    const events: CalendarEvent[] = appointments.map((a) => ({
-        id: a.id,
-        title: a.customer,
-        start: new Date(a.date),
-        end: new Date(a.date),
-        allDay: false,
-        status: a.status,
-    }));
+    const events: CalendarEvent[] = appointments
+        .filter((a): a is Appointment => !!a && typeof a.id !== "undefined")
+        .map((a) => ({
+            id: a.id,
+            title: a.customer,
+            start: new Date(a.date),
+            end: new Date(a.date),
+            allDay: false,
+            status: a.status,
+        }));
 
     const handleEdit = (appointment) => {
         setCurrentAppointment(appointment);
@@ -64,17 +67,9 @@ export default function CalendarPage() {
         setShowModal(true);
     };
 
-    const handleSave = (updatedAppointment) => {
-        if (modalMode === "edit") {
-            setAppointments((prev) =>
-                prev.map((appt) =>
-                    appt.id === updatedAppointment.id ? updatedAppointment : appt
-                )
-            );
-        } else {
-            setAppointments((prev) => [...prev, updatedAppointment]);
-        }
+    const handleSave = () => {
         setShowModal(false);
+        // No need to update appointments manually; loader will refresh after redirect
     };
 
     const handleClose = () => {
